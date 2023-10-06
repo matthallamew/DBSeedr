@@ -3,14 +3,28 @@
 package dataGenerator
 
 import (
+	"errors"
 	"math/rand"
+	"strings"
 	"time"
 )
 
 // GenerateRandomData takes in an int that indicates how many total characters should be generated.
 // Spaces are added in between each group of random characters to form a mock sentence.
 // The generatedLettersAndSpacesSlice is returned as a string.
-func GenerateRandomData(amountToGenerate int) string {
+func GenerateRandomData(dataType string, amountToGenerate int) (any, error) {
+	dataTypeLower := strings.ToLower(dataType)
+	switch dataTypeLower {
+	case "string", "varchar", "nvarchar":
+		return generateRandomString(amountToGenerate), nil
+	case "int", "smallint", "tinyint":
+		return getRandomNumBetween(1, amountToGenerate), nil
+	default:
+		return nil, errors.New("Cannot generate for data type " + dataType)
+	}
+}
+
+func generateRandomString(amountToGenerate int) string {
 	const lowerAndUpperCaseLettersEng = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	generatedLettersAndSpacesSlice := make([]byte, amountToGenerate)
 	stopLen := len(generatedLettersAndSpacesSlice)
