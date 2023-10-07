@@ -1,14 +1,19 @@
+// Package dbaccess provides utility functions to take care of figuring out database table metadata and inserting generated data.
+// Currently, this package is heavily tied to Microsoft SQL Server.
 package dbaccess
 
 import (
 	"database/sql"
 	"fmt"
+	_ "github.com/microsoft/go-mssqldb"
 	"log"
 	"net/url"
 	"os"
 	"strings"
+	"time"
 )
 
+// TableSchemaData defines the metadata query columns used to determine the data type and amount to generate.
 type TableSchemaData struct {
 	ColumnName     string
 	SystemDataType string
@@ -18,29 +23,17 @@ type TableSchemaData struct {
 }
 
 // GetTableSchemaData Connects to a database and queries the system tables to gather metadata about the given table.
-// Return a TableSchemaData slice filled with metadata about the given table.
+// Return a TableSchemaData slice filled with metadata for the given table.
 func GetTableSchemaData(tableName string) ([]TableSchemaData, error) {
-	dbConnect := getDBConnectionSetup()
-	query := url.Values{}
-	query.Add("database", dbConnect.dbName)
-	dbUrl := &url.URL{
-		Scheme:   "sqlserver",
-		User:     url.UserPassword(dbConnect.dbUser, dbConnect.dbPass),
-		Host:     fmt.Sprintf("%v:%d", dbConnect.dbHostName, 1433),
-		RawQuery: query.Encode(),
-	}
-
-	db, err := sql.Open("mssql", dbUrl.String())
+	db := connectToDb()
 	defer db.Close()
-	if err != nil {
-		//parse or initialization error.
-		log.Fatal(err)
-	}
-
-	queryStr := `SELECT AC.[name] AS [ColumnName], TY.[name] AS SystemDataType, AC.[max_length] AS MaxLength,  AC.[is_nullable] AS IsNullable, AC.is_identity AS IsIdentity
+	queryStr := `SELECT AC.[name] AS [columnName], TY.[name] AS systemDataType, AC.[max_length] AS maxLength, 
+AC.[is_nullable] AS isNullable, CASE WHEN AC.is_identity=1 THEN 1 WHEN FAC.[name] IS NOT NULL THEN 1 ELSE 0 END AS isIdentity
 FROM sys.[tables] AS T
 INNER JOIN sys.[all_columns] AC ON T.[object_id] = AC.[object_id]
 INNER JOIN sys.[types] TY ON AC.[system_type_id] = TY.[system_type_id] AND AC.[user_type_id] = TY.[user_type_id]
+LEFT OUTER JOIN sys.[foreign_key_columns] FKC ON FKC.parent_object_id = T.[object_id]
+LEFT OUTER JOIN sys.[all_columns] FAC ON FAC.column_id = FKC.referenced_column_id AND FAC.[name] = AC.[name]
 WHERE T.[is_ms_shipped] = 0
 AND (OBJECT_SCHEMA_NAME(T.[object_id],DB_ID()) = 'dbo')
 AND (T.[name] = ?)
@@ -52,21 +45,38 @@ ORDER BY T.[name], AC.[column_id]`
 		return nil, err
 	}
 	defer rows.Close()
-	var fieldData []TableSchemaData
+	var metaDataRecords []TableSchemaData
 	for rows.Next() {
-		var fields TableSchemaData
-		err = rows.Scan(&fields.ColumnName, &fields.SystemDataType, &fields.MaxLength, &fields.IsNullable, &fields.IsIdentity)
+		var field TableSchemaData
+		err = rows.Scan(&field.ColumnName, &field.SystemDataType, &field.MaxLength, &field.IsNullable, &field.IsIdentity)
 		if err != nil {
 			log.Fatal(err)
 			return nil, err
 		}
-		fieldData = append(fieldData, fields)
+		metaDataRecords = append(metaDataRecords, field)
 	}
 	if err = rows.Err(); err != nil {
 		log.Fatal(err)
 		return nil, err
 	}
-	return fieldData, nil
+	return metaDataRecords, nil
+}
+
+// InsertGeneratedData takes in a query string and a slice of values that will
+// get swapped with their respective placeholders in the query string when the query is executed.
+func InsertGeneratedData(query string, vals ...any) {
+	db := connectToDb()
+	defer db.Close()
+	response, err := db.Exec(query, vals...)
+	if err != nil {
+		panic(err)
+	}
+
+	rows, err := response.RowsAffected()
+	if err != nil {
+		log.Printf("Error when getting rows affected: %s", err)
+	}
+	log.Printf("Rows affected: %d", rows)
 }
 
 type dbSetupData struct {
@@ -74,8 +84,7 @@ type dbSetupData struct {
 }
 
 // getDBConnectionSetup Looks up the given Environment Variables to determine the information needed to connect to the database.
-// Return a string containing the username and a string containing the password, if they exist.
-// Otherwise, return two empty strings.
+// Return dbSetupData filled with the necessary connection information (if the proper environment variables exist).
 func getDBConnectionSetup() dbSetupData {
 	var dbSetup dbSetupData
 	dbCredsEnv, exists := os.LookupEnv("MSSQLServerDbCreds")
@@ -95,4 +104,29 @@ func getDBConnectionSetup() dbSetupData {
 		dbSetup.dbHostName = dbHostNameEnv
 	}
 	return dbSetup
+}
+
+// connectToDb will get the appropriate DB connection setup information and connect to the database.
+// This returns db which is a reference to the database connection.
+func connectToDb() *sql.DB {
+	var db *sql.DB
+	dbConnect := getDBConnectionSetup()
+	query := url.Values{}
+	query.Add("database", dbConnect.dbName)
+	dbUrl := &url.URL{
+		Scheme:   "sqlserver",
+		User:     url.UserPassword(dbConnect.dbUser, dbConnect.dbPass),
+		Host:     fmt.Sprintf("%v:%d", dbConnect.dbHostName, 1433),
+		RawQuery: query.Encode(),
+	}
+
+	db, err := sql.Open("mssql", dbUrl.String())
+	if err != nil {
+		//parse or initialization error.
+		log.Fatal(err)
+	}
+	db.SetConnMaxLifetime(time.Minute * 3)
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(10)
+	return db
 }
