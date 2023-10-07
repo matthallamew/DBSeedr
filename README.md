@@ -10,4 +10,6 @@ Currently, this is program is tightly coupled to Microsoft SQL Server.
 It is easiest to run this program from an IDE or the CLI as you will need to manually update the variable tableToFillWithRandomData
 with the name of the table that you want to generate data into. 
 
-If the table you want to fill has a Foreign Key, you will need to manually add that to the hardCodedFKs map to ensure the insert query succeeds. 
+If the table you want to fill has a non-nullable Foreign Key, you will need to manually add that to the staticFields map to ensure the insert query succeeds.
+
+The staticFields map may also contain any database field name and value pairs to enable you to fill certain fields with non-random data (example: recordType).

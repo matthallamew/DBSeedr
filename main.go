@@ -12,10 +12,20 @@ func main() {
 	const tableToFillWithRandomData = "Addr"
 	//const tableToFillWithRandomData = "Person"
 
-	// Add any known Foreign Key name and value pairs here to ensure they get inserted
-	hardCodedFKs := make(map[string]int)
-	//hardCodedFKs["addressID"] = 1
+	// Add any DB field name and value pairs that you want to fill with static data
+	// Example: non-nullable Foreign Keys will need to be in here, otherwise the insert will fail
+	staticFields := make(map[string]any)
+	//staticFields["state"] = "MN"
+	//staticFields["addressID"] = 1
 
+	for idx := 0; idx < 5; idx++ {
+		seedDb(tableToFillWithRandomData, staticFields)
+	}
+
+}
+
+// seedDb will gather the metadata for a given table, build an insert query, and execute the insert query.
+func seedDb(tableToFillWithRandomData string, staticFields map[string]any) {
 	dbMetaData, err := dbaccess.GetTableSchemaData(tableToFillWithRandomData)
 	if err != nil {
 		panic(err)
@@ -29,8 +39,10 @@ func main() {
 	metaDataSliceLength := len(dbMetaData) - 1
 	var generatedVals []any
 	for idx, dbField := range dbMetaData {
-		// if the dbField is an identity field, skip it as it should get auto generated when a record is inserted
-		if !dbField.IsIdentity {
+		_, fieldIsStaticallyFilled := staticFields[dbField.ColumnName]
+		// If the dbField is an identity field, skip it as it should get auto generated when a record is inserted
+		// If the dbField is in the list of staticFields, skip auto generating it
+		if !dbField.IsIdentity && !fieldIsStaticallyFilled {
 			sbQueryUpper.WriteString("[" + dbField.ColumnName + "]")
 			sbQueryLower.WriteString("?")
 			// if we are not done looping through metadata, add a comma before the next field and placeholder
@@ -50,11 +62,11 @@ func main() {
 			}
 		}
 	}
-	// Add any Foreign Keys to the insert query
-	if totalFKs := len(hardCodedFKs); totalFKs > 0 {
+	// Add any staticFields records to the insert query
+	if totalStaticFields := len(staticFields); totalStaticFields > 0 {
 		insertLen := 0
-		for key, value := range hardCodedFKs {
-			if insertLen < totalFKs {
+		for key, value := range staticFields {
+			if insertLen < totalStaticFields {
 				sbQueryUpper.WriteString(", ")
 				sbQueryLower.WriteString(", ")
 			}
