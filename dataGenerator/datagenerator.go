@@ -19,7 +19,7 @@ func GenerateRandomData(dataType string, amountToGenerate int) (any, error) {
 	case isStringType(dataTypeLower):
 		return generateRandomString(amountToGenerate), nil
 	case isIntType(dataTypeLower):
-		return generateRandomNumBetween(1, amountToGenerate, "integer"), nil
+		return generateRandomNumBetween(1, convertIntMaxLengthToMaxNumber(amountToGenerate), "integer"), nil
 	case isDecimalType(dataTypeLower):
 		return generateRandomNumBetween(1, amountToGenerate, "decimal"), nil
 	case isDateOrTimeType(dataTypeLower):
@@ -53,6 +53,22 @@ func isIntType(typeStr string) bool {
 	default:
 		return false
 	}
+}
+
+// convertIntMaxLengthToMaxNumber takes the maxLength value for Microsoft SQL Server integer data types
+// and converts it to the maximum allowed number.
+func convertIntMaxLengthToMaxNumber(size int) int {
+	var powerVal float64
+	floatSize := float64(size)
+	switch {
+	case size < 1:
+		powerVal = 0.0
+	case size == 1:
+		powerVal = 8.0
+	case size > 1:
+		powerVal = (8.0 * floatSize) - 1.0
+	}
+	return int(math.Pow(2, powerVal) - 1)
 }
 
 // isDecimalType checks the given typeStr to see if it fits within a Decimal/Float database type.
