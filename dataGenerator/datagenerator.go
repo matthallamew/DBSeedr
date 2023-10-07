@@ -22,6 +22,8 @@ func GenerateRandomData(dataType string, amountToGenerate int) (any, error) {
 		return generateRandomNumBetween(1, amountToGenerate, "integer"), nil
 	case isDecimalType(dataTypeLower):
 		return generateRandomNumBetween(1, amountToGenerate, "decimal"), nil
+	case isDateOrTimeType(dataTypeLower):
+		return time.Date(generateRandomNumBetween(1970, time.Now().Year(), "integer").(int), time.Month(generateRandomNumBetween(1, 12, "integer").(int)), generateRandomNumBetween(1, 31, "integer").(int), generateRandomNumBetween(0, 23, "integer").(int), generateRandomNumBetween(0, 59, "integer").(int), generateRandomNumBetween(0, 59, "integer").(int), 0, time.Local), nil
 	case isBoolType(dataTypeLower):
 		return generateRandomNumBetween(0, amountToGenerate, "integer"), nil
 	default:
@@ -62,6 +64,19 @@ func isDecimalType(typeStr string) bool {
 	case "float", "real":
 		return true
 	case "money", "smallmoney":
+		return true
+	default:
+		return false
+	}
+}
+
+// isDateOrTimeType checks the given typeStr to see if it fits within a Date/Time database type.
+// It will return true if it does or false if it does not.
+func isDateOrTimeType(typeStr string) bool {
+	switch typeStr {
+	case "date", "datetime", "datetime2":
+		return true
+	case "time", "smalldatetime", "datetimeoffset":
 		return true
 	default:
 		return false
