@@ -32,8 +32,8 @@ AC.[is_nullable] AS isNullable, CASE WHEN AC.is_identity=1 THEN 1 WHEN FAC.[name
 FROM sys.[tables] AS T
 INNER JOIN sys.[all_columns] AC ON T.[object_id] = AC.[object_id]
 INNER JOIN sys.[types] TY ON AC.[system_type_id] = TY.[system_type_id] AND AC.[user_type_id] = TY.[user_type_id]
-LEFT OUTER JOIN sys.[foreign_key_columns] FKC ON FKC.parent_object_id = T.[object_id]
-LEFT OUTER JOIN sys.[all_columns] FAC ON FAC.column_id = FKC.referenced_column_id AND FAC.[name] = AC.[name]
+LEFT OUTER JOIN sys.[foreign_keys] FKC ON FKC.parent_object_id = T.[object_id] 
+LEFT OUTER JOIN sys.[all_columns] FAC ON FAC.[object_id] = FKC.referenced_object_id AND FAC.[name] = AC.[name]
 WHERE T.[is_ms_shipped] = 0
 AND (OBJECT_SCHEMA_NAME(T.[object_id],DB_ID()) = 'dbo')
 AND (T.[name] = ?)
