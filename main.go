@@ -12,6 +12,7 @@ import (
 func main() {
 	const tableToFillWithRandomData = "Addr"
 	//const tableToFillWithRandomData = "Person"
+	dbMetaData := getDbMetaData(tableToFillWithRandomData)
 
 	// Add any DB field name and value pairs that you want to fill with static data
 	// Example: non-nullable Foreign Keys will need to be in here, otherwise the insert will fail
@@ -19,19 +20,35 @@ func main() {
 	//staticFields["state"] = "MN"
 	//staticFields["addressID"] = 1
 
+	var filteredMetaData []dbaccess.TableSchemaData
+	for idx, dbField := range dbMetaData {
+		if _, exists := staticFields[dbField.ColumnName]; !exists {
+			filteredMetaData = append(filteredMetaData, dbMetaData[idx])
+		}
+	}
+
 	var waitGroup sync.WaitGroup
 	for idx := 0; idx < 5; idx++ {
 		waitGroup.Add(1)
 		go func() {
 			defer waitGroup.Done()
-			seedDb(tableToFillWithRandomData, staticFields)
+			seedDb(tableToFillWithRandomData, staticFields, filteredMetaData)
 		}()
 	}
 	waitGroup.Wait()
 }
 
-// seedDb will gather the metadata for a given table, build an insert query, and execute the insert query.
-func seedDb(tableToFillWithRandomData string, staticFields map[string]any) {
+// getDbMetaData uses the dbaccess package to get the database metadata and return the result.
+func getDbMetaData(tableToFillWithRandomData string) []dbaccess.TableSchemaData {
+	dbMetaData, err := dbaccess.GetTableSchemaData(tableToFillWithRandomData)
+	if err != nil {
+		panic(err)
+	}
+	return dbMetaData
+}
+
+// seedDb will build and execute an insert query for the given table, database metadata, and any fields the user has chosen to fill on their own.
+func seedDb(tableToFillWithRandomData string, staticFields map[string]any, dbMetaData []dbaccess.TableSchemaData) {
 	dbMetaData, err := dbaccess.GetTableSchemaData(tableToFillWithRandomData)
 	if err != nil {
 		panic(err)
@@ -72,7 +89,7 @@ func seedDb(tableToFillWithRandomData string, staticFields map[string]any) {
 	if totalStaticFields := len(staticFields); totalStaticFields > 0 {
 		insertLen := 0
 		for key, value := range staticFields {
-			if insertLen < totalStaticFields {
+			if insertLen < totalStaticFields && len(generatedVals) > 0 {
 				sbQueryUpper.WriteString(", ")
 				sbQueryLower.WriteString(", ")
 			}
