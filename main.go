@@ -49,11 +49,6 @@ func getDbMetaData(tableToFillWithRandomData string) []dbaccess.TableSchemaData 
 
 // seedDb will build and execute an insert query for the given table, database metadata, and any fields the user has chosen to fill on their own.
 func seedDb(tableToFillWithRandomData string, staticFields map[string]any, dbMetaData []dbaccess.TableSchemaData) {
-	dbMetaData, err := dbaccess.GetTableSchemaData(tableToFillWithRandomData)
-	if err != nil {
-		panic(err)
-	}
-
 	var sbQueryUpper, sbQueryLower, fullQuery strings.Builder
 	sbQueryUpper.WriteString("INSERT INTO dbo.")
 	sbQueryUpper.WriteString(tableToFillWithRandomData)
