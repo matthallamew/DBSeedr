@@ -28,12 +28,20 @@ func GetTableSchemaData(tableName string) ([]TableSchemaData, error) {
 	db := connectToDb()
 	defer db.Close()
 	queryStr := `SELECT AC.[name] AS [columnName], TY.[name] AS systemDataType, AC.[max_length] AS maxLength, 
-AC.[is_nullable] AS isNullable, CASE WHEN AC.is_identity=1 THEN 1 WHEN FAC.[name] IS NOT NULL THEN 1 ELSE 0 END AS isIdentity
+AC.[is_nullable] AS isNullable, CASE WHEN AC.is_identity=1 THEN 1 
+WHEN FAC.foreignKeyName IS NOT NULL THEN 1 
+ELSE 0 END AS isIdentity
 FROM sys.[tables] AS T
 INNER JOIN sys.[all_columns] AC ON T.[object_id] = AC.[object_id]
 INNER JOIN sys.[types] TY ON AC.[system_type_id] = TY.[system_type_id] AND AC.[user_type_id] = TY.[user_type_id]
-LEFT OUTER JOIN sys.[foreign_keys] FKC ON FKC.parent_object_id = T.[object_id] 
-LEFT OUTER JOIN sys.[all_columns] FAC ON FAC.[object_id] = FKC.referenced_object_id AND FAC.[name] = AC.[name]
+OUTER APPLY (
+SELECT FAC.[name] AS foreignKeyName
+FROM sys.[foreign_keys] FKC 
+INNER JOIN sys.[all_columns] FAC ON FAC.[object_id] = FKC.referenced_object_id 
+AND FKC.parent_object_id = AC.[object_id] 
+AND FAC.[name] = AC.[name]
+AND FAC.is_identity = 1
+) FAC
 WHERE T.[is_ms_shipped] = 0
 AND (OBJECT_SCHEMA_NAME(T.[object_id],DB_ID()) = 'dbo')
 AND (T.[name] = ?)
