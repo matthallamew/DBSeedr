@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"sync"
 )
 
 func main() {
@@ -18,10 +19,15 @@ func main() {
 	//staticFields["state"] = "MN"
 	//staticFields["addressID"] = 1
 
+	var waitGroup sync.WaitGroup
 	for idx := 0; idx < 5; idx++ {
-		seedDb(tableToFillWithRandomData, staticFields)
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			seedDb(tableToFillWithRandomData, staticFields)
+		}()
 	}
-
+	waitGroup.Wait()
 }
 
 // seedDb will gather the metadata for a given table, build an insert query, and execute the insert query.
